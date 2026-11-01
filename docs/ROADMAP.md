@@ -147,6 +147,9 @@ Owner: open · Status: done (branch chore/r0.5-cleanups)
 - [x] Capped allocation in `unreal_iostore.rs`: a `.utoc` header naming 2^31 compression methods of
       length 0 collected empty names until memory ran out (6 GiB from a 559-byte file); only the
       255 a block can point at are read, the rest skipped. Found by mutation fuzzing of `crates/formats`
+- [x] The Agent console keeps its size: its history and prompt box came out 17 points taller than
+      the bottom panel, which grew by that every frame until its maximum and then cut off the top
+      of the Agent / Jobs / Log tabs (`chat::conversation`)
 - [x] `cargo xtask layers` also scans `apps/`
 - [x] Engines in `KNOWN` without a `ToolPaths` override (tshark, objdump, rizin, java)
 - [x] Missing `database` icon for SQLite in the UI (`kind_icon`)
