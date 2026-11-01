@@ -208,7 +208,8 @@ impl<'a> Elf<'a> {
         let want_ph = if is64 { 56 } else { 32 };
         if phnum > 0 && usize::from(phentsize) >= want_ph {
             for i in 0..usize::from(phnum).min(MAX_PHDRS) {
-                let Some(o) = to_usize(phoff).and_then(|p| p.checked_add(i.checked_mul(usize::from(phentsize))?)) else { break };
+                // An entry that starts past the end can't be read, and its field offsets (`o + 32`) could overflow.
+                let Some(o) = to_usize(phoff).and_then(|p| p.checked_add(i.checked_mul(usize::from(phentsize))?)).filter(|&o| o < data.len()) else { break };
                 let ph = if is64 {
                     (r.u32_le(o), r.u64_le(o + 8), r.u64_le(o + 16), r.u64_le(o + 32))
                 } else {
@@ -222,7 +223,7 @@ impl<'a> Elf<'a> {
         let want_sh = if is64 { 64 } else { 40 };
         if shnum > 0 && shoff != 0 && usize::from(shentsize) >= want_sh {
             for i in 0..usize::from(shnum) {
-                let Some(o) = to_usize(shoff).and_then(|p| p.checked_add(i.checked_mul(usize::from(shentsize))?)) else { break };
+                let Some(o) = to_usize(shoff).and_then(|p| p.checked_add(i.checked_mul(usize::from(shentsize))?)).filter(|&o| o < data.len()) else { break };
                 let sh = if is64 {
                     (r.u32_le(o + 4), r.u64_le(o + 24), r.u64_le(o + 32), r.u32_le(o + 40), r.u64_le(o + 56))
                 } else {
@@ -747,6 +748,25 @@ mod tests {
         assert_eq!(flutter_library("lib/x86/libflutter.so"), Some(("x86", "libflutter")));
         assert_eq!(flutter_library("lib/x86/sub/libapp.so"), None);
         assert_eq!(flutter_library("assets/libapp.so"), None);
+    }
+
+    #[test]
+    fn header_tables_at_the_top_of_the_address_space_are_skipped() {
+        for is64 in [true, false] {
+            let mut so = fx::libapp_so(fx::SymbolTable::Sections);
+            // Point both tables a few bytes below the largest offset, so `o + 8` would overflow (the
+            // 32-bit case only overflows where `usize` is 32 bits; elsewhere it checks the bound).
+            if is64 {
+                so[32..40].copy_from_slice(&(u64::MAX - 3).to_le_bytes());
+                so[40..48].copy_from_slice(&(u64::MAX - 3).to_le_bytes());
+            } else {
+                so[4] = 1;
+                so[28..32].copy_from_slice(&(u32::MAX - 3).to_le_bytes());
+                so[32..36].copy_from_slice(&(u32::MAX - 3).to_le_bytes());
+            }
+            let elf = Elf::parse(&so).unwrap();
+            assert!(elf.phdrs.is_empty() && elf.shdrs.is_empty());
+        }
     }
 
     #[test]
