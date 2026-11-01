@@ -754,18 +754,34 @@ mod tests {
     fn header_tables_at_the_top_of_the_address_space_are_skipped() {
         for is64 in [true, false] {
             let mut so = fx::libapp_so(fx::SymbolTable::Sections);
-            // Point both tables a few bytes below the largest offset, so `o + 8` would overflow (the
-            // 32-bit case only overflows where `usize` is 32 bits; elsewhere it checks the bound).
-            if is64 {
-                so[32..40].copy_from_slice(&(u64::MAX - 3).to_le_bytes());
-                so[40..48].copy_from_slice(&(u64::MAX - 3).to_le_bytes());
-            } else {
+            // Where each table's offset is (64-bit at 32 and 40, 32-bit at 28 and 32), and a writer for it.
+            let (ph, sh) = if is64 { (32, 40) } else { (28, 32) };
+            let put = |so: &mut Vec<u8>, at: usize, v: u64| {
+                if is64 {
+                    so[at..at + 8].copy_from_slice(&v.to_le_bytes());
+                } else {
+                    so[at..at + 4].copy_from_slice(&(v as u32).to_le_bytes());
+                }
+            };
+            if !is64 {
+                // Read as 32-bit, the sample's header has no counts: give it one entry in each table.
                 so[4] = 1;
-                so[28..32].copy_from_slice(&(u32::MAX - 3).to_le_bytes());
-                so[32..36].copy_from_slice(&(u32::MAX - 3).to_le_bytes());
+                for (at, v) in [(42, 32u16), (44, 1), (46, 40), (48, 1)] {
+                    so[at..at + 2].copy_from_slice(&v.to_le_bytes());
+                }
             }
+            // Inside the file, both tables are read, so the loops below really run.
+            put(&mut so, ph, 64);
+            put(&mut so, sh, 64);
             let elf = Elf::parse(&so).unwrap();
-            assert!(elf.phdrs.is_empty() && elf.shdrs.is_empty());
+            assert!(!elf.phdrs.is_empty() && !elf.shdrs.is_empty(), "is64 {is64}");
+            // A few bytes below the largest offset, `o + 8` would overflow (for 32-bit offsets, only
+            // where `usize` is 32 bits; elsewhere this checks the bound).
+            let top = if is64 { u64::MAX - 3 } else { u64::from(u32::MAX - 3) };
+            put(&mut so, ph, top);
+            put(&mut so, sh, top);
+            let elf = Elf::parse(&so).unwrap();
+            assert!(elf.phdrs.is_empty() && elf.shdrs.is_empty(), "is64 {is64}");
         }
     }
 
