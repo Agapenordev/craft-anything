@@ -250,6 +250,7 @@ fn only_an_openai_compatible_server_nearby_is_local() {
         ("Ollama", "http://127.0.0.1:11434/v1", true),
         ("LM Studio box", "http://192.168.1.20:1234/v1", true),
         ("Docker Ollama", "http://ollama:11434/v1", true),
+        ("IPv6 link-local", "http://[fe80::1]:11434/v1", true),
         ("Z.ai", "https://api.z.ai/api/coding/paas/v4", false),
         ("Public vLLM", "http://8.8.8.8:8000/v1", false),
     ] {

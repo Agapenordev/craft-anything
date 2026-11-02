@@ -150,7 +150,7 @@ pub(crate) fn on_this_network(url: &str) -> bool {
     };
     match host.parse::<std::net::IpAddr>() {
         Ok(std::net::IpAddr::V4(ip)) => ip.is_loopback() || ip.is_private() || ip.is_link_local(),
-        Ok(std::net::IpAddr::V6(ip)) => ip.is_loopback() || ip.is_unique_local(),
+        Ok(std::net::IpAddr::V6(ip)) => ip.is_loopback() || ip.is_unique_local() || ip.is_unicast_link_local(),
         Err(_) => {
             let host = host.to_ascii_lowercase();
             !host.is_empty() && (!host.contains('.') || LAN_SUFFIXES.iter().any(|s| host.ends_with(s)))
@@ -317,6 +317,7 @@ mod tests {
             "http://localhost:1234/v1",
             "http://127.0.0.1/v1",
             "http://[::1]:8080",
+            "http://[fe80::1]:11434/v1",
             "http://10.0.0.5:8000/v1",
             "https://studio.local:1234/v1",
             "http://172.20.0.2:1234",
