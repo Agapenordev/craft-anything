@@ -134,7 +134,12 @@ pub fn opencode_servers(text: &str) -> Vec<(String, String)> {
         .collect()
 }
 
-/// An http(s) address on this computer or its local network.
+/// Name endings kept for local networks, which public DNS never answers.
+const LAN_SUFFIXES: &[&str] = &[".local", ".lan", ".home.arpa", ".internal"];
+
+/// An http(s) address on this computer or its local network: a private or loopback IP, or a name
+/// that only a local network can answer (`localhost`, a bare name such as Docker's `ollama`, or a
+/// [`LAN_SUFFIXES`] name). Nothing is looked up.
 pub(crate) fn on_this_network(url: &str) -> bool {
     let Some(rest) = url.strip_prefix("http://").or_else(|| url.strip_prefix("https://")) else { return false };
     let host = rest.split('/').next().unwrap_or_default();
@@ -146,7 +151,10 @@ pub(crate) fn on_this_network(url: &str) -> bool {
     match host.parse::<std::net::IpAddr>() {
         Ok(std::net::IpAddr::V4(ip)) => ip.is_loopback() || ip.is_private() || ip.is_link_local(),
         Ok(std::net::IpAddr::V6(ip)) => ip.is_loopback() || ip.is_unique_local(),
-        Err(_) => host.eq_ignore_ascii_case("localhost") || host.to_ascii_lowercase().ends_with(".local"),
+        Err(_) => {
+            let host = host.to_ascii_lowercase();
+            !host.is_empty() && (!host.contains('.') || LAN_SUFFIXES.iter().any(|s| host.ends_with(s)))
+        }
     }
 }
 
@@ -312,10 +320,24 @@ mod tests {
             "http://10.0.0.5:8000/v1",
             "https://studio.local:1234/v1",
             "http://172.20.0.2:1234",
+            "http://ollama:11434/v1",
+            "http://GPU-Box:8000",
+            "http://gpu.lan:1234/v1",
+            "http://studio.home.arpa/v1",
+            "http://llm.internal:8080",
         ] {
             assert!(on_this_network(url), "{url}");
         }
-        for url in ["https://api.openai.com/v1", "http://8.8.8.8/v1", "ftp://127.0.0.1", "127.0.0.1:1234", ""] {
+        for url in [
+            "https://api.openai.com/v1",
+            "http://8.8.8.8/v1",
+            "ftp://127.0.0.1",
+            "127.0.0.1:1234",
+            "",
+            "http://",
+            "https://lan.example.com",
+            "https://internal.example.com/v1",
+        ] {
             assert!(!on_this_network(url), "{url}");
         }
     }
