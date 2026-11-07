@@ -710,7 +710,7 @@ impl Worker {
                 // A saved path that's gone (an update moved it) or would start the wrong app runs another program: say which (#721).
                 if let Some(saved) = crate::cli_agents::replaced_program(&entry.options, &program) {
                     self.emit(RunEvent::Agent(AgentEvent::Status {
-                        text: format!("Settings → AI names {saved}, but {program} runs instead. Choose it again there if that's not the one you want."),
+                        text: format!("Settings → AI names {saved}, but {program} runs instead. To use a different one, choose it in Settings → AI."),
                     }));
                 }
                 if adapter.signed_in(&program) == Some(false) {
